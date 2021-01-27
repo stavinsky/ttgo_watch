@@ -22,6 +22,9 @@ void power_disable(enum power_source source);
 bool power_enabled(enum power_source source);
 bool power_disabled(enum power_source source);
 void enable_pek_irq();
+void axp_power_on();
+void axp_sleep();
+
 esp_err_t read_irq(uint8_t* result);
 esp_err_t clear_irq();
 

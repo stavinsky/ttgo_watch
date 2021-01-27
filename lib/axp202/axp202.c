@@ -1,6 +1,8 @@
 #include "axp202.h"
 #include "esp_log.h"
 #include <stdlib.h>
+#include "esp_err.h"
+
 static const char* TAG = "axp202";
 
 static esp_err_t register_read(uint8_t reg, uint8_t *result) {
@@ -54,20 +56,6 @@ static esp_err_t register_bit_clear(uint8_t reg, uint8_t value) {
   return err;
 }
 
-static bool register_bit_isset(uint8_t reg, uint8_t bit){
-
-    uint8_t err = ESP_OK;
-    uint8_t reg_value = 0;
-    err = register_read(reg, &reg_value);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "unable to read register");
-        return false;
-    }
-    if ((bit & reg_value) > 0) {
-        return true;
-    }
-    return false;
-}
 
 void power_enable(enum power_source source){
     register_bit_set(REG_POWER_OUTPUT, source);
@@ -132,4 +120,21 @@ float axp_battery_discharge_current(){
     printf("current %2X, %2x", high, low);
     return ((high << 5) | (low & 0x1f)) * 0.5;
 
+}
+
+void axp_power_on(){
+    power_enable(AXP_EXTEN);
+    power_enable(AXP_LDO4);
+    power_enable(AXP_DC2);
+    power_enable(AXP_LDO3);
+    power_enable(AXP_LDO2);
+    power_enable(AXP_DC3); // esp32
+}
+void axp_sleep(){
+    power_disable(AXP_EXTEN);
+    power_disable(AXP_LDO4);
+    power_disable(AXP_DC2);
+    power_disable(AXP_LDO3);
+    power_disable(AXP_LDO2);
+    //power_disable(AXP_DC3);
 }
