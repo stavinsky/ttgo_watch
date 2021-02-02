@@ -32,3 +32,6 @@ esp_err_t clear_irq();
 bool axp_is_pek_short_press(uint8_t* irq);
 bool axp_is_pek_long_press(uint8_t* irq);
 float axp_battery_discharge_current();
+
+bool axp_charging();
+

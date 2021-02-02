@@ -138,3 +138,8 @@ void axp_sleep(){
     power_disable(AXP_LDO2);
     //power_disable(AXP_DC3);
 }
+bool axp_charging(){
+    uint8_t value=0;
+    register_read(0x01, &value);
+    return (bool)(value & 1<<6);
+}

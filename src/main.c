@@ -28,9 +28,70 @@ static void lv_tick_task(void *arg);
 static void guiTask(void *pvParameter);
 static void create_demo_application(void);
 SemaphoreHandle_t xGuiSemaphore;
-lv_obj_t * ta1;
+
+void blink_task(void * arg){
+	lv_obj_t * blink_label;
+	blink_label = (lv_obj_t*) arg;
 
 
+}
+
+
+void draw_main_window(lv_obj_t * tileview){
+    lv_obj_t * tile1 = lv_obj_create(tileview, NULL);
+    lv_obj_set_size(tile1, LV_HOR_RES, LV_VER_RES);
+    lv_tileview_add_element(tileview, tile1);
+
+    lv_obj_t * blink_label  = malloc(sizeof(lv_obj_t));
+	blink_label = lv_label_create(tile1, NULL);
+
+    lv_label_set_text(blink_label, LV_SYMBOL_BATTERY_EMPTY);
+    lv_obj_align(blink_label, NULL, LV_ALIGN_IN_TOP_LEFT, 0, 0);
+	TaskHandle_t *blink_handle;
+	xTaskCreate(blink_task, "blink_task", 1024, (void *)blink_label, 1, blink_handle);
+
+
+	free(blink_label);
+
+}
+
+
+void tile_view_cb(lv_obj_t * obj, lv_event_t event){
+
+	if (event == LV_EVENT_VALUE_CHANGED){
+		const uint32_t *event_value = lv_event_get_data();
+		if(*event_value == 0) {
+			draw_main_window(obj);
+		}
+
+	}
+
+}
+
+void lv_ex_tileview_1(void)
+{
+    static lv_point_t valid_pos[] = {{0,0}, {0, 1}};
+    lv_obj_t *tileview;
+    tileview = lv_tileview_create(lv_scr_act(), NULL);
+    lv_obj_set_event_cb(tileview, tile_view_cb);
+    lv_tileview_set_valid_positions(tileview, valid_pos, 2);
+    lv_tileview_set_edge_flash(tileview, false);
+
+    lv_obj_t * list = lv_list_create(tileview, NULL);
+    lv_obj_set_size(list, LV_HOR_RES, LV_VER_RES);
+    lv_obj_set_pos(list, 0, LV_VER_RES);
+    lv_list_set_scroll_propagation(list, true);
+    lv_list_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_OFF);
+
+    lv_list_add_btn(list, NULL, "One");
+    lv_list_add_btn(list, NULL, "Two");
+    lv_list_add_btn(list, NULL, "Three");
+    lv_list_add_btn(list, NULL, "Four");
+    lv_list_add_btn(list, NULL, "Five");
+    lv_list_add_btn(list, NULL, "Six");
+    lv_list_add_btn(list, NULL, "Seven");
+    lv_list_add_btn(list, NULL, "Eight");
+}
 void app_main()
 {
     pereph_init();
@@ -45,7 +106,7 @@ void app_main()
     char buffer[50];
     i2c_master_read_slave_reg(I2C_NUM_1, 0x38, 0x02, &reg, 1);
     sprintf(buffer, "touch  register: %2X", reg);
-    lv_textarea_set_text(ta1, buffer);
+    //lv_textarea_set_text(ta1, buffer);
 }
 static void btn_event_cb(lv_obj_t * btn, lv_event_t event)
 {
@@ -90,9 +151,6 @@ static void guiTask(void *pvParameter) {
     disp_drv.buffer = &disp_buf;
     lv_disp_drv_register(&disp_drv);
 
-    /* Register an input device when enabled on the menuconfig */
-
-
     /*touch driver*/
     ft6x06_init(0x38);
     lv_indev_drv_t indev_drv;
@@ -108,27 +166,28 @@ static void guiTask(void *pvParameter) {
     esp_timer_handle_t periodic_timer;
     ESP_ERROR_CHECK(esp_timer_create(&periodic_timer_args, &periodic_timer));
     ESP_ERROR_CHECK(esp_timer_start_periodic(periodic_timer, LV_TICK_PERIOD_MS * 1000));
-    ta1 = lv_textarea_create(lv_scr_act(), NULL);
-    static lv_style_t st;
-    lv_style_init(&st);
-    lv_style_set_text_font(&st, LV_STATE_DEFAULT, &lv_font_montserrat_14);
-    lv_obj_add_style(ta1, LV_TEXTAREA_PART_BG, &st);
-    lv_obj_set_size(ta1, 240, 240);
-    lv_obj_align(ta1, NULL, LV_ALIGN_CENTER, 0, 0);
 
-    lv_obj_t * btn = lv_btn_create(lv_scr_act(), NULL);     /*Add a button the current screen*/
-    lv_obj_set_pos(btn, 10, 10);                            /*Set its position*/
-    lv_obj_set_size(btn, 120, 50);                          /*Set its size*/
-    lv_obj_set_event_cb(btn, btn_event_cb);                 /*Assign a callback to the button*/
+    /*ta1 = lv_textarea_create(lv_scr_act(), NULL);*/
+    /*static lv_style_t st;*/
+    /*lv_style_init(&st);*/
+    /*lv_style_set_text_font(&st, LV_STATE_DEFAULT, &lv_font_montserrat_14);*/
+    /*lv_obj_add_style(ta1, LV_TEXTAREA_PART_BG, &st);*/
+    /*lv_obj_set_size(ta1, 240, 240);*/
+    /*lv_obj_align(ta1, NULL, LV_ALIGN_CENTER, 0, 0);*/
 
-    lv_obj_t * label = lv_label_create(btn, NULL);          /*Add a label to the button*/
-    lv_label_set_text(label, "Button");
+    /*lv_obj_t * btn = lv_btn_create(lv_scr_act(), NULL);     [>Add a button the current screen<]*/
+    /*lv_obj_set_pos(btn, 10, 10);                            [>Set its position<]*/
+    /*lv_obj_set_size(btn, 120, 50);                          [>Set its size<]*/
+    /*lv_obj_set_event_cb(btn, btn_event_cb);                 [>Assign a callback to the button<]*/
+
+    /*lv_obj_t * label = lv_label_create(btn, NULL);          [>Add a label to the button<]*/
+    /*lv_label_set_text(label, "Button");*/
 
     //lv_textarea_set_text(ta1, "A text in a Text Area");
 
     /* Create the demo application */
     //create_demo_application();
-
+    lv_ex_tileview_1();
     while (1) {
         /* Delay 1 tick (assumes FreeRTOS tick is 10ms */
         vTaskDelay(pdMS_TO_TICKS(10));
