@@ -143,3 +143,9 @@ bool axp_charging(){
     register_read(0x01, &value);
     return (bool)(value & 1<<6);
 }
+uint8_t get_fuel_guage(){
+    uint8_t value=0;
+    register_read(0xB9, &value);
+    return value & 0x7f;
+
+}

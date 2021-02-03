@@ -22,6 +22,8 @@
 #include "scanner.h"
 #include "pereph.h"
 #include "isr.h"
+#include "pcf8563.h"
+#include "time.h"
 //#include "ft6230u.h"
 #define LV_TICK_PERIOD_MS 1
 static void lv_tick_task(void *arg);
@@ -29,29 +31,66 @@ static void guiTask(void *pvParameter);
 static void create_demo_application(void);
 SemaphoreHandle_t xGuiSemaphore;
 
-void blink_task(void * arg){
-	lv_obj_t * blink_label;
-	blink_label = (lv_obj_t*) arg;
+xTaskHandle current_window_handle = NULL;
 
 
-}
 
+void main_window_task(void* arg){
+    BaseType_t notification;
+    uint8_t gauge = 0;
+    lv_obj_t *tileview = (lv_obj_t *) arg;
 
-void draw_main_window(lv_obj_t * tileview){
     lv_obj_t * tile1 = lv_obj_create(tileview, NULL);
     lv_obj_set_size(tile1, LV_HOR_RES, LV_VER_RES);
     lv_tileview_add_element(tileview, tile1);
 
-    lv_obj_t * blink_label  = malloc(sizeof(lv_obj_t));
+    lv_obj_t * blink_label  = (lv_obj_t*)malloc(sizeof(lv_obj_t));
 	blink_label = lv_label_create(tile1, NULL);
-
     lv_label_set_text(blink_label, LV_SYMBOL_BATTERY_EMPTY);
     lv_obj_align(blink_label, NULL, LV_ALIGN_IN_TOP_LEFT, 0, 0);
-	TaskHandle_t *blink_handle;
-	xTaskCreate(blink_task, "blink_task", 1024, (void *)blink_label, 1, blink_handle);
 
+    lv_obj_t *percent_label = lv_label_create(tile1, NULL);
+    lv_obj_align(percent_label, blink_label , LV_ALIGN_OUT_RIGHT_MID, 10, 0);
 
-	free(blink_label);
+    lv_obj_t *discharge_current_label = lv_label_create(tile1, NULL);
+    lv_obj_align(discharge_current_label, percent_label, LV_ALIGN_OUT_RIGHT_MID, 5,0);
+    while(1){
+        if (axp_charging()){
+            lv_obj_set_hidden(blink_label, lv_obj_is_visible(blink_label));
+        }
+        else {
+            lv_obj_set_hidden(blink_label, false);
+        }
+        gauge = get_fuel_guage();
+        switch ((int)(gauge/20)) {
+            case 0:
+                lv_label_set_text(blink_label, LV_SYMBOL_BATTERY_EMPTY);
+                break;
+            case 1:
+                lv_label_set_text(blink_label, LV_SYMBOL_BATTERY_1);
+                break;
+            case 2:
+                lv_label_set_text(blink_label, LV_SYMBOL_BATTERY_2);
+                break;
+            case 3:
+                lv_label_set_text(blink_label, LV_SYMBOL_BATTERY_3);
+                break;
+            case 4:
+                lv_label_set_text(blink_label, LV_SYMBOL_BATTERY_FULL);
+                break;
+
+        }
+
+        lv_label_set_text_fmt(percent_label, "%i%" , gauge);
+        lv_label_set_text_fmt(discharge_current_label, "%2.3f", axp_battery_discharge_current());
+
+        notification = xTaskNotifyWait(0xffffffff, 0xffffffff, NULL, pdMS_TO_TICKS(500));
+        if (notification == pdTRUE ) {
+            break;
+        }
+    }
+    lv_obj_del(tile1);
+    vTaskDelete(NULL);
 
 }
 
@@ -59,9 +98,13 @@ void draw_main_window(lv_obj_t * tileview){
 void tile_view_cb(lv_obj_t * obj, lv_event_t event){
 
 	if (event == LV_EVENT_VALUE_CHANGED){
+        if(current_window_handle != NULL) {
+            xTaskNotify(current_window_handle, 0, eNoAction);
+        }
 		const uint32_t *event_value = lv_event_get_data();
 		if(*event_value == 0) {
-			draw_main_window(obj);
+            printf("test >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
+            xTaskCreate(main_window_task, "mw_task", 2048,(void *) obj, 1, &current_window_handle);
 		}
 
 	}

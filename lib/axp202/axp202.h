@@ -34,4 +34,5 @@ bool axp_is_pek_long_press(uint8_t* irq);
 float axp_battery_discharge_current();
 
 bool axp_charging();
+uint8_t get_fuel_guage();
 
