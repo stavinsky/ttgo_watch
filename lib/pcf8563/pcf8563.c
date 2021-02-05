@@ -1,11 +1,7 @@
 #include "pcf8563.h"
 #include "time.h"
 #include "esp_err.h"
-#include "i2c.h"
-
-#define BCD_4_HIGH(val) ((val & 0xF0)>>4)
-#define BCD_4_LOW(val) (val & 0x0F)
-#define BCD_INT(val) ((BCD_4_HIGH(val) * 10) + BCD_4_LOW(val))
+#include "helpers.h"
 
 static const char* TAG = "ttgo_rtc";
 

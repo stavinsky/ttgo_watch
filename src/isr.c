@@ -2,6 +2,7 @@
 #include "isr.h"
 #include "esp_attr.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"
 #include "esp_sleep.h"
 #include "esp_wifi.h"
 #include "lvgl_tft/st7789.h"
@@ -9,7 +10,8 @@
 #include "esp_bt_main.h"
 #include "esp_wifi.h"
 
-
+#include "lvgl.h"
+#include "main.h"
 
 #include "axp202.h"
 
@@ -41,58 +43,58 @@ static void button_task(void *args){
             esp_bluedroid_disable();
             esp_bt_controller_disable();
             esp_wifi_stop();
+
             esp_light_sleep_start();
             //esp_deep_sleep_start();
 
             st7789_send_cmd(0x11);
             axp_power_on();
-
+            esp_timer_stop(periodic_timer);
             clear_irq();
             enable_pek_irq();
+            lv_tick_inc(LV_DISP_DEF_REFR_PERIOD);
+            lv_task_handler();
+            ESP_ERROR_CHECK(esp_timer_start_periodic(periodic_timer, LV_TICK_PERIOD_MS * 1000));
             continue;
         }
 
     }
 
 }
+void IRAM_ATTR touch_isr_handler(void *arg){
+    TaskHandle_t * handle;
+    handle = (TaskHandle_t *) arg;
+    xTaskResumeFromISR(*handle);
+}
+
+
+void touch_task(void *args) {
+    touch_queue = xQueueCreate(5, sizeof(TouchPosition));
+    TouchPosition *pos  = (TouchPosition*)pvPortMalloc(sizeof(TouchPosition));
+    bool got_touch = false;
+    while (1){
+        vTaskSuspend(NULL);
+        got_touch = get_position(pos);
+        if (got_touch) {
+            xQueueSend(touch_queue, (void*)&pos, ( TickType_t ) 5);
+        }
+    }
+}
 
 void register_button_isr(){
-    TaskHandle_t *param = (TaskHandle_t *) pvPortMalloc(
+    TaskHandle_t *button_handle = (TaskHandle_t *) pvPortMalloc(
             sizeof(TaskHandle_t));
-    xTaskCreate(button_task, "button_task", 4096, NULL, 10, param);
 
-    gpio_isr_handler_add(35, button_isr_handler, (void *)param);
+    xTaskCreate(button_task, "button_task", 4096, NULL, 10, button_handle);
+
+    TaskHandle_t *touch_handle = (TaskHandle_t *) pvPortMalloc(
+            sizeof(TaskHandle_t));
+    xTaskCreate(touch_task, "touch_task", 4096, NULL, 10, touch_handle);
+
+    gpio_isr_handler_add(35, button_isr_handler, (void *)button_handle);
+
+    gpio_isr_handler_add(38, touch_isr_handler, (void*)touch_handle);
+
 }
-/*void IRAM_ATTR touch_isr_handler(void *arg){*/
-/*    xTaskResumeFromISR(TouchISR);*/
-/*}*/
-/*void touch_task(void *args) {*/
-/*    uint8_t touch_data[14];*/
-/*    enum gestures gest = NOTHING ;*/
-/*    char buffer[50];*/
-/*    uint8_t n_points = 0;*/
-/*    while (1){*/
-/*        vTaskSuspend(NULL);*/
-/*        get_touch(touch_data);*/
-/*        gest = get_gesture(touch_data);*/
-/*        //if (gest != NOTHING) {*/
-/*            sprintf(buffer, "gesture: %2X ", gest);*/
-/*            lv_textarea_add_text(ta1, buffer);*/
-/*        //}*/
-/*        n_points = num_points(touch_data);*/
-/*        if (n_points >0){*/
-/*            sprintf(buffer, "touched:  %i\n", n_points);*/
-/*            //lv_textarea_add_text(ta1, buffer);*/
-/*        }*/
-/*    }*/
-/*}*/
-    /*gpio_pad_select_gpio(38); // ft6236*/
-    /*gpio_set_direction(38, GPIO_MODE_INPUT);*/
-    /*gpio_set_intr_type(38, GPIO_INTR_NEGEDGE);*/
-
-
-    //gpio_isr_handler_add(38, touch_isr_handler, NULL);
-    //vTaskDelay(1000 / portTICK_PERIOD_MS);
-    //xTaskCreate(touch_task, "touch_task", 4096, NULL, 10, &TouchISR);
 
 

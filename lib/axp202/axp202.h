@@ -1,7 +1,12 @@
 #pragma once
 
 #include <stdio.h>
-#include "i2c.h"
+#include <stdbool.h>
+
+#include "esp_err.h"
+
+
+
 #define AXP202_ADDR 0x35
 #define AXP_I2C_PORT I2C_NUM_0
 

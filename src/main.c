@@ -1,3 +1,4 @@
+#include "main.h"
 #include "lv_conf.h"
 #include "lv_core/lv_style.h"
 #include "tt_config.h"
@@ -8,24 +9,20 @@
 #include "freertos/semphr.h"
 #include "esp_system.h"
 #include "esp_spi_flash.h"
-
+#include "helpers.h"
 
 #include "lvgl.h"
 #include "lvgl_tft/st7789.h"
-#include "lvgl_touch/tp_i2c.h"
-#include "lvgl_touch/ft6x36.h"
 #include "driver/gpio.h"
 #include <driver/i2c.h>
-#include "i2c.h"
 #include "axp202.h"
 #include "esp_intr_alloc.h"
-#include "scanner.h"
 #include "pereph.h"
 #include "isr.h"
 #include "pcf8563.h"
 #include "time.h"
-//#include "ft6230u.h"
-#define LV_TICK_PERIOD_MS 1
+#include "ft6230u.h"
+
 static void lv_tick_task(void *arg);
 static void guiTask(void *pvParameter);
 static void create_demo_application(void);
@@ -45,7 +42,7 @@ void main_window_task(void* arg){
     lv_tileview_add_element(tileview, tile1);
 
     lv_obj_t * blink_label  = (lv_obj_t*)malloc(sizeof(lv_obj_t));
-	blink_label = lv_label_create(tile1, NULL);
+    blink_label = lv_label_create(tile1, NULL);
     lv_label_set_text(blink_label, LV_SYMBOL_BATTERY_EMPTY);
     lv_obj_align(blink_label, NULL, LV_ALIGN_IN_TOP_LEFT, 0, 0);
 
@@ -84,12 +81,15 @@ void main_window_task(void* arg){
         lv_label_set_text_fmt(percent_label, "%i%" , gauge);
         lv_label_set_text_fmt(discharge_current_label, "%2.3f", axp_battery_discharge_current());
 
-        notification = xTaskNotifyWait(0xffffffff, 0xffffffff, NULL, pdMS_TO_TICKS(500));
+        notification = xTaskNotifyWait(0xffffffff, 0xffffffff, NULL, pdMS_TO_TICKS(1000));
         if (notification == pdTRUE ) {
             break;
         }
     }
-    lv_obj_del(tile1);
+    printf("kill\n");
+    printf("free memory: %i\n", xPortGetFreeHeapSize());
+    //lv_obj_del(tile1);
+    //vTaskDelay(pdMS_TO_TICKS(200));
     vTaskDelete(NULL);
 
 }
@@ -103,8 +103,7 @@ void tile_view_cb(lv_obj_t * obj, lv_event_t event){
         }
 		const uint32_t *event_value = lv_event_get_data();
 		if(*event_value == 0) {
-            printf("test >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
-            xTaskCreate(main_window_task, "mw_task", 2048,(void *) obj, 1, &current_window_handle);
+            xTaskCreatePinnedToCore(main_window_task, "mw_task", 2048,(void *) obj, 1, &current_window_handle,1);
 		}
 
 	}
@@ -135,24 +134,17 @@ void lv_ex_tileview_1(void)
     lv_list_add_btn(list, NULL, "Seven");
     lv_list_add_btn(list, NULL, "Eight");
 }
-void app_main()
-{
+void app_main() {
     pereph_init();
 
     register_button_isr();
     vTaskDelay(100 / portTICK_PERIOD_MS);
 
     xTaskCreatePinnedToCore(guiTask, "gui", 4096*2, NULL, 0, NULL, 1);
-    printf("Hello world!\n");
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
-    uint8_t reg = 0;
-    char buffer[50];
-    i2c_master_read_slave_reg(I2C_NUM_1, 0x38, 0x02, &reg, 1);
-    sprintf(buffer, "touch  register: %2X", reg);
     //lv_textarea_set_text(ta1, buffer);
 }
-static void btn_event_cb(lv_obj_t * btn, lv_event_t event)
-{
+
+static void btn_event_cb(lv_obj_t * btn, lv_event_t event) {
     if(event == LV_EVENT_CLICKED) {
         static uint8_t cnt = 0;
         cnt++;
@@ -195,18 +187,17 @@ static void guiTask(void *pvParameter) {
     lv_disp_drv_register(&disp_drv);
 
     /*touch driver*/
-    ft6x06_init(0x38);
+    ft_touch_init();
     lv_indev_drv_t indev_drv;
     lv_indev_drv_init(&indev_drv);
     indev_drv.type = LV_INDEV_TYPE_POINTER;
-    indev_drv.read_cb = ft6x36_read;
+    indev_drv.read_cb = read_touch_cb;
     lv_indev_drv_register(&indev_drv);
     /* Create and start a periodic timer interrupt to call lv_tick_inc */
     const esp_timer_create_args_t periodic_timer_args = {
         .callback = &lv_tick_task,
-        .name = "periodic_gui"
+        .name = "periodic_gui",
     };
-    esp_timer_handle_t periodic_timer;
     ESP_ERROR_CHECK(esp_timer_create(&periodic_timer_args, &periodic_timer));
     ESP_ERROR_CHECK(esp_timer_start_periodic(periodic_timer, LV_TICK_PERIOD_MS * 1000));
 
@@ -228,12 +219,10 @@ static void guiTask(void *pvParameter) {
 
     //lv_textarea_set_text(ta1, "A text in a Text Area");
 
-    /* Create the demo application */
-    //create_demo_application();
     lv_ex_tileview_1();
     while (1) {
         /* Delay 1 tick (assumes FreeRTOS tick is 10ms */
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(20));
 
         /* Try to take the semaphore, call lvgl related function on success */
         if (pdTRUE == xSemaphoreTake(xGuiSemaphore, portMAX_DELAY)) {

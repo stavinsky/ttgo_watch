@@ -1,5 +1,5 @@
 #include "scanner.h"
-#include "i2c.h"
+#include "helpers.h"
 
 void i2cscanner(uint8_t i2c_port) {
 

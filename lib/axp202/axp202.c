@@ -2,6 +2,7 @@
 #include "esp_log.h"
 #include <stdlib.h>
 #include "esp_err.h"
+#include "helpers.h"
 
 static const char* TAG = "axp202";
 
@@ -88,8 +89,6 @@ esp_err_t read_irq(uint8_t* result){
        if (err != ESP_OK) {
            ESP_LOGE(TAG, "can't read irq");
        }
-       // itoa(tmp, buffer, 2);
-       // printf("register %02X: %s\n", REG_IRQ_1 + i, buffer);
        result[i] = tmp;
     }
     return err;
@@ -117,18 +116,30 @@ float axp_battery_discharge_current(){
     uint8_t high = 0;
     register_read(0x7c, &high);
     register_read(0x7d, &low);
-    printf("current %2X, %2x", high, low);
     return ((high << 5) | (low & 0x1f)) * 0.5;
 
 }
+#pragma pack(push, 1)
+typedef struct {
+    uint8_t exten  :1;
+    uint8_t dc3    :1;
+    uint8_t ldo2   :1;
+    uint8_t ldo4   :1;
+    uint8_t dc2    :1;
+    uint8_t        :1;
+    uint8_t ldo3   :1;
+    uint8_t        :1;
 
+}PowerOutputControl;
+
+#pragma pack(pop)
 void axp_power_on(){
-    power_enable(AXP_EXTEN);
-    power_enable(AXP_LDO4);
-    power_enable(AXP_DC2);
-    power_enable(AXP_LDO3);
-    power_enable(AXP_LDO2);
-    power_enable(AXP_DC3); // esp32
+    PowerOutputControl poc;
+
+    ESP_ERROR_CHECK(i2c_master_read_slave_reg(AXP_I2C_PORT, AXP202_ADDR, 0x12, (void*)&poc, sizeof(poc)));
+    poc.dc3 = 1;
+    poc.ldo2 = 1;
+    ESP_ERROR_CHECK(i2c_master_write_slave_reg(AXP_I2C_PORT, AXP202_ADDR, 0x12, (void*)&poc, sizeof(poc)));
 }
 void axp_sleep(){
     power_disable(AXP_EXTEN);
