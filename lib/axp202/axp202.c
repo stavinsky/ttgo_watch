@@ -80,30 +80,27 @@ void enable_pek_irq(){
     register_bit_set(0x82,  1<<6 ); // TODO: move to init somehow
 }
 
-esp_err_t read_irq(uint8_t* result){
-    uint8_t tmp = 0;
+void read_irq(AXP_IRQ* irq ){
     //char buffer[8];
-    esp_err_t err = ESP_OK;
-    for(uint8_t i=0; i<5; i++) {
-        err = register_read(REG_IRQ_1 + i, &tmp);
-       if (err != ESP_OK) {
-           ESP_LOGE(TAG, "can't read irq");
-       }
-       result[i] = tmp;
-    }
-    return err;
+    ESP_ERROR_CHECK(i2c_master_read_slave_reg(AXP_I2C_PORT, AXP202_ADDR, REG_IRQ_1, (void*)irq, sizeof(AXP_IRQ)));
 }
-esp_err_t clear_irq(){
-    esp_err_t err = ESP_OK;
-    for(uint8_t i=0; i<5; i++) {
-       err = register_write(REG_IRQ_1 + i, 0xFF);
-       if (err != ESP_OK) {
-           ESP_LOGE(TAG, "can't write irq");
 
-       }
-    }
-    return err;
-
+/*esp_err_t read_irq(uint8_t* result){*/
+/*    uint8_t tmp = 0;*/
+/*    //char buffer[8];*/
+/*    esp_err_t err = ESP_OK;*/
+/*    for(uint8_t i=0; i<5; i++) {*/
+/*        err = register_read(REG_IRQ_1 + i, &tmp);*/
+/*       if (err != ESP_OK) {*/
+/*           ESP_LOGE(TAG, "can't read irq");*/
+/*       }*/
+/*       result[i] = tmp;*/
+/*    }*/
+/*    return err;*/
+/*}*/
+void clear_irq(){
+    AXP_IRQ irq = {0};
+    ESP_ERROR_CHECK(i2c_master_write_slave_reg(AXP_I2C_PORT, AXP202_ADDR, REG_IRQ_1, (void*)&irq, sizeof(AXP_IRQ)));
 }
 bool axp_is_pek_short_press(uint8_t* irq){
     return (bool)(irq[2] & (1 << 1));
@@ -119,20 +116,6 @@ float axp_battery_discharge_current(){
     return ((high << 5) | (low & 0x1f)) * 0.5;
 
 }
-#pragma pack(push, 1)
-typedef struct {
-    uint8_t exten  :1;
-    uint8_t dc3    :1;
-    uint8_t ldo2   :1;
-    uint8_t ldo4   :1;
-    uint8_t dc2    :1;
-    uint8_t        :1;
-    uint8_t ldo3   :1;
-    uint8_t        :1;
-
-}PowerOutputControl;
-
-#pragma pack(pop)
 void axp_power_on(){
     PowerOutputControl poc;
 
@@ -142,17 +125,21 @@ void axp_power_on(){
     ESP_ERROR_CHECK(i2c_master_write_slave_reg(AXP_I2C_PORT, AXP202_ADDR, 0x12, (void*)&poc, sizeof(poc)));
 }
 void axp_sleep(){
-    power_disable(AXP_EXTEN);
-    power_disable(AXP_LDO4);
-    power_disable(AXP_DC2);
-    power_disable(AXP_LDO3);
-    power_disable(AXP_LDO2);
-    //power_disable(AXP_DC3);
+
+    PowerOutputControl poc;
+    poc.exten = 0;
+    poc.dc3 = 1;
+    poc.ldo2 = 0;
+    poc.ldo4 = 0;
+    poc.dc2 = 0;
+    poc.ldo3 = 0;
+
+    ESP_ERROR_CHECK(i2c_master_write_slave_reg(AXP_I2C_PORT, AXP202_ADDR, 0x12, (void*)&poc, sizeof(poc)));
 }
 bool axp_charging(){
-    uint8_t value=0;
-    register_read(0x01, &value);
-    return (bool)(value & 1<<6);
+    PowerWorkingMode pwm;
+    ESP_ERROR_CHECK(i2c_master_read_slave_reg(AXP_I2C_PORT, AXP202_ADDR, 0x01, (void*)&pwm, sizeof(pwm)));
+    return (bool) pwm.charging;
 }
 uint8_t get_fuel_guage(){
     uint8_t value=0;

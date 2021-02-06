@@ -23,18 +23,19 @@ static void IRAM_ATTR button_isr_handler(void *arg){
 }
 
 static void button_task(void *args){
-    uint8_t irq[5] = {0xff, 0xff, 0xff,0xff,0xff };
+    //uint8_t irq[5] = {0xff, 0xff, 0xff,0xff,0xff };
+    AXP_IRQ irq;
     while(1) {
         vTaskSuspend(NULL);
-        read_irq(irq);
+        read_irq(&irq);
         clear_irq();
         enable_pek_irq();
         printf("irq triggered\n");
-        if (axp_is_pek_long_press(irq)){
+        if (irq.pek_long_press == 1){
             printf("irq pek long press\n");
             continue;
         }
-        if (axp_is_pek_short_press(irq)){
+        if (irq.pek_short_press == 1){
             printf("irq pek short press\n");
             vTaskDelay(pdMS_TO_TICKS(10));
             esp_sleep_enable_ext0_wakeup(35,0);
